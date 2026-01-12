@@ -1,5 +1,3 @@
-Here is the **entire README as a single `.md` document**, ready to paste directly into `README.md` (no code fences around it).
-
 ---
 
 # Smart Booking Scheduler
