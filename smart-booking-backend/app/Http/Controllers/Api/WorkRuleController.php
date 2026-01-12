@@ -27,6 +27,10 @@ class WorkRuleController extends Controller
     {
         $data = $this->validated($request);
 
+        if ($resp = $this->assertSlotFitsWindow($data)) {
+            return $resp;
+        }
+
         if ($this->overlapsExisting($data['day_of_week'], $data['start_time'], $data['end_time'])) {
             return response()->json([
                 'message' => 'Work rule overlaps an existing rule for that weekday.',
@@ -38,31 +42,12 @@ class WorkRuleController extends Controller
         return response()->json($rule, 201);
     }
 
-    
-
-    public function update(Request $request, WorkRule $work_rule): JsonResponse
-    {
-        $data = $this->validated($request);
-
-        if ($this->overlapsExisting($data['day_of_week'], $data['start_time'], $data['end_time'], $work_rule->id)) {
-            return response()->json([
-                'message' => 'Work rule overlaps an existing rule for that weekday.',
-            ], 422);
-        }
-
-        $work_rule->update($data);
-
-        return response()->json($work_rule);
-    }
-
-
 
 
 
     public function destroy(WorkRule $work_rule): JsonResponse
     {
         $work_rule->delete();
-
         return response()->json(null, 204);
     }
 
@@ -72,7 +57,7 @@ class WorkRuleController extends Controller
             'day_of_week' => ['required', 'integer', 'min:0', 'max:6'],
             'start_time' => ['required', 'date_format:H:i'],
             'end_time' => ['required', 'date_format:H:i', 'after:start_time'],
-            'slot_minutes' => ['required', 'integer', Rule::in([15, 30, 60])],
+            'slot_minutes' => ['required', 'integer', 'min:1', 'max:1440'],
         ]);
     }
 
@@ -93,7 +78,27 @@ class WorkRuleController extends Controller
         return $q->exists();
     }
 
+    private function timeToMinutes(string $time): int
+    {
+        // "HH:MM" (validated) -> minutes since 00:00
+        [$h, $m] = array_map('intval', explode(':', $time));
+        return $h * 60 + $m;
+    }
 
+    private function assertSlotFitsWindow(array $data): ?JsonResponse
+    {
+        $startMin = $this->timeToMinutes($data['start_time']);
+        $endMin   = $this->timeToMinutes($data['end_time']);
+        $window   = $endMin - $startMin; // end_time is after start_time
+
+        if ((int)$data['slot_minutes'] > $window) {
+            return response()->json([
+                'message' => 'slot_minutes cannot be longer than the working time window.',
+            ], 422);
+        }
+
+        return null;
+    }
 
 
 }

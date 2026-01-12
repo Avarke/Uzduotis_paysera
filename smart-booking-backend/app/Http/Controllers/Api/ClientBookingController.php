@@ -43,19 +43,22 @@ class ClientBookingController extends Controller
             return response()->json(['message' => 'No working hours for this day.'], 422);
         }
 
-        // Validate slot is allowed by at least one rule (time window + grid alignment)
-        $startTime = $data['start_time'] . ':00'; // compare with TIME columns
-        $matchingRule = $rules->first(function ($rule) use ($data, $startTime, $date) {
+        $startTime = $data['start_time'] . ':00'; // "HH:MM:SS"
+
+        $matchingRule = $rules->first(function ($rule) use ($startTime, $date) {
+            $ruleStart = $this->normalizeTimeToSeconds((string)$rule->start_time);
+            $ruleEnd   = $this->normalizeTimeToSeconds((string)$rule->end_time);
+
             // within [start, end)
-            if (!($rule->start_time <= $startTime && $startTime < $rule->end_time)) {
+            if (!($ruleStart <= $startTime && $startTime < $ruleEnd)) {
                 return false;
             }
 
             // alignment to slot grid
-            $ruleStart = Carbon::createFromFormat('Y-m-d H:i:s', $date->toDateString() . ' ' . $rule->start_time);
-            $slot = Carbon::createFromFormat('Y-m-d H:i:s', $date->toDateString() . ' ' . $startTime);
+            $ruleStartDt = Carbon::createFromFormat('Y-m-d H:i:s', $date->toDateString() . ' ' . $ruleStart);
+            $slotDt      = Carbon::createFromFormat('Y-m-d H:i:s', $date->toDateString() . ' ' . $startTime);
 
-            $diff = $ruleStart->diffInMinutes($slot);
+            $diff = $ruleStartDt->diffInMinutes($slotDt);
             return $diff % (int)$rule->slot_minutes === 0;
         });
 
@@ -63,11 +66,11 @@ class ClientBookingController extends Controller
             return response()->json(['message' => 'Selected time is not available.'], 422);
         }
 
-        // Optional: compute end_time
+        //compute end_time
         $start = Carbon::createFromFormat('Y-m-d H:i', $data['date'] . ' ' . $data['start_time']);
         $end = $start->copy()->addMinutes((int)$service->duration_minutes);
 
-        // If booking is for today, prevent booking in the past (relative to now)
+        // if booking is for today, prevent booking in the past (relative to now)
         if ($date->isToday() && $start->lt(now())) {
             return response()->json(['message' => 'Cannot book a past time today.'], 422);
         }
@@ -101,4 +104,11 @@ class ClientBookingController extends Controller
             'client_email' => $booking->client_email,
         ], 201);
     }
+
+
+    private function normalizeTimeToSeconds(string $time): string
+    {
+        return strlen($time) === 5 ? ($time . ':00') : $time;
+    }
+
 }

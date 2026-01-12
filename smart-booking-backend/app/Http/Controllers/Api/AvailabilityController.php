@@ -11,6 +11,8 @@ use Illuminate\Http\Request;
 
 class AvailabilityController extends Controller
 {
+
+
     public function index(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -55,8 +57,12 @@ class AvailabilityController extends Controller
         foreach ($rules as $rule) {
             $slotMinutes = (int)$rule->slot_minutes;
 
-            $start = Carbon::createFromFormat('Y-m-d H:i:s', $date->toDateString() . ' ' . $rule->start_time);
-            $end   = Carbon::createFromFormat('Y-m-d H:i:s', $date->toDateString() . ' ' . $rule->end_time);
+            $ruleStart = $this->normalizeTimeToSeconds((string)$rule->start_time);
+            $ruleEnd   = $this->normalizeTimeToSeconds((string)$rule->end_time);
+
+            $start = Carbon::createFromFormat('Y-m-d H:i:s', $date->toDateString() . ' ' . $ruleStart);
+            $end   = Carbon::createFromFormat('Y-m-d H:i:s', $date->toDateString() . ' ' . $ruleEnd);
+
 
             if ($date->isToday()) {
                 $now = now();
@@ -93,6 +99,7 @@ class AvailabilityController extends Controller
 
     private function ceilToSlot(Carbon $now, int $slotMinutes, string $ruleStartTime, Carbon $date): Carbon
     {
+        $ruleStartTime = $this->normalizeTimeToSeconds($ruleStartTime);
         $ruleStart = Carbon::createFromFormat('Y-m-d H:i:s', $date->toDateString() . ' ' . $ruleStartTime);
 
         if ($now->lte($ruleStart)) {
@@ -108,4 +115,11 @@ class AvailabilityController extends Controller
         // ensure not before ruleStart
         return $candidate->lt($ruleStart) ? $ruleStart : $candidate;
     }
+
+    private function normalizeTimeToSeconds(string $time): string
+    {
+        // "18:00" -> "18:00:00", "18:00:00" stays as-is
+        return strlen($time) === 5 ? ($time . ':00') : $time;
+    }
+
 }

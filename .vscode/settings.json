@@ -1,0 +1,11 @@
+{
+    "sqltools.connections": [
+        {
+            "previewLimit": 50,
+            "driver": "SQLite",
+            "database": "smart-booking-backend/database/database.sqlite",
+            "name": "Paysera thingy"
+        }
+    ],
+    "sqltools.useNodeRuntime": true
+}
