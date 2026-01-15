@@ -15,12 +15,15 @@ class AvailabilityController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+
+        // validate input
         $data = $request->validate([
             'date' => ['required', 'date_format:Y-m-d'],
         ]);
 
         $date = Carbon::createFromFormat('Y-m-d', $data['date'])->startOfDay();
 
+        // no past dates
         if ($date->lt(now()->startOfDay())) {
             return response()->json([
                 'date' => $date->toDateString(),
@@ -32,6 +35,8 @@ class AvailabilityController extends Controller
         // day_of_week convention: 0=Sunday..6=Saturday
         $dayOfWeek = $date->dayOfWeek;
 
+
+        // get all the rules for that specific day
         $rules = WorkRule::query()
             ->where('day_of_week', $dayOfWeek)
             ->orderBy('start_time')
@@ -44,12 +49,14 @@ class AvailabilityController extends Controller
             ]);
         }
 
+        // get already booked times
         $booked = ClientBooking::query()
             ->whereDate('date', $date->toDateString())
             ->pluck('start_time')
             ->map(fn ($t) => substr((string)$t, 0, 5)) // "HH:MM:SS" -> "HH:MM"
             ->all();
 
+        // turn into a fast lookup set
         $bookedSet = array_flip($booked);
 
         $slots = [];
@@ -66,11 +73,11 @@ class AvailabilityController extends Controller
 
             if ($date->isToday()) {
                 $now = now();
-                if ($end->lte($now)) {
+                if ($end->lte($now)) { // is end <= now?
                     continue;
                 }
 
-                
+                // if the rule has started, move on to the next slot
                 if ($start->lt($now)) {
                     $start = $this->ceilToSlot($now, $slotMinutes, $rule->start_time, $date);
                     if ($start->gte($end)) {
@@ -79,9 +86,11 @@ class AvailabilityController extends Controller
                 }
             }
 
+            // generate slots
             for ($t = $start->copy(); $t->lt($end); $t->addMinutes($slotMinutes)) {
                 $hhmm = $t->format('H:i');
 
+                // check if the time is booked
                 if (!isset($bookedSet[$hhmm])) {
                     $slots[] = $hhmm;
                 }

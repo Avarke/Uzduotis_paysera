@@ -45,6 +45,8 @@ class ClientBookingController extends Controller
 
         $startTime = $data['start_time'] . ':00'; // "HH:MM:SS"
 
+
+        // find a rule that allows this start time
         $matchingRule = $rules->first(function ($rule) use ($startTime, $date) {
             $ruleStart = $this->normalizeTimeToSeconds((string)$rule->start_time);
             $ruleEnd   = $this->normalizeTimeToSeconds((string)$rule->end_time);
